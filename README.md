@@ -1,4 +1,4 @@
-﻿# CU Student Affairs — ID Card Review
+# CU Student Affairs — ID Card Review
 
 PHP dashboard and JSON API for reviewing replacement-card applications. It uses plain JavaScript/CSS and reads the shared `idcard_system` database directly.
 
@@ -10,9 +10,11 @@ PHP dashboard and JSON API for reviewing replacement-card applications. It uses 
 2. Follow the [shared database setup](../idcard-system/README.md#database-setup), including `idcardsettings`. This module needs `students`, `idcardapplications`, and `idcardsettings`.
 3. Set [include/config.php](include/config.php) to the same database as the other projects.
 4. Keep `cu_student`, `cu_studentaffairs`, and `idcard-system` as siblings for media resolution.
-5. Open `http://localhost/REFACTOR/cu_studentaffairs/studentaffairs/dashboard.php`, adjusting the base path as needed.
+5. Open `http://localhost/REFACTOR/cu_studentaffairs/studentaffairs/review-requests.php`, adjusting the base path as needed.
 
 ## Dashboard workflow
+
+Navigation now opens dedicated pages: `studentaffairs/review-requests.php`, `studentaffairs/approved-log.php`, and `studentaffairs/rejected-log.php`. Each sets its own fixed list and heading, while sharing the application list, details, dialogs, and API script. `studentaffairs/dashboard.php` redirects to Review ID Requests. Browser refresh/back and direct bookmarks retain the selected page.
 
 | Tab | Statuses | Ordering/filtering |
 | --- | --- | --- |
@@ -33,14 +35,16 @@ Only submitted applications can be reviewed:
 
 | Path | Purpose |
 | --- | --- |
-| `studentaffairs/dashboard.php` | Dashboard markup, review dialogs, and media viewer. |
+| `studentaffairs/dashboard.php` | Compatibility redirect to `review-requests.php`. |
+| `studentaffairs/review-requests.php`, `approved-log.php`, `rejected-log.php` | Dedicated review and log pages. |
+| `include/studentaffairs/` | Shared header/navigation, application list/detail view, and footer/dialogs. |
 | `index.php` | JSON API router. |
 | `class/StudentAffairs.php` | Listing, student joins, approval/rejection, response formatting. |
 | `class/General.php` | Responses, cleaning, expiry updates, media URL resolution. |
 | `include/config.php` | PDO connection and base path. |
 | `include/classes.php` | Class loading. |
 | `include/session.php` | Session initialization and reviewer identity. |
-| `assets/js/studentaffairs.js` | Tabs, search, details, notifications, and review requests. |
+| `assets/js/studentaffairs.js` | Page-specific status filtering, search, details, notifications, and review requests. |
 | `assets/css/studentaffairs.css` | Layout, responsive rules, and status badges. |
 | `assets/images/` | University branding. |
 | `idcard/` | Legacy photos referenced by older records; new submissions belong to `cu_student`. |
@@ -64,4 +68,4 @@ Media resolution checks the relative path under `../idcard-system`, then `../cu_
 
 ## Manual verification
 
-With development records, check search/reason filtering, document/photo previews, approval fee/deadline, required rejection reasons, and conflict handling for already reviewed applications. Check paid records in Approved Log and expired invoices in Rejected Log. These checks change shared application records. No automated test suite is supplied.
+With development records, check search/reason filtering, document/photo previews, approval fee/deadline, required rejection reasons, and conflict handling for already reviewed applications. Check paid records in Approved Log and expired invoices in Rejected Log. These checks change shared application records. Navigation regression checks are available in the workspace at [tests/navigation_smoke.py](../tests/navigation_smoke.py). Run `python tests/navigation_smoke.py` from REFACTOR with Apache/PHP running. These check page routes, assets, filters, and legacy redirects; they do not exercise application/payment writes.
