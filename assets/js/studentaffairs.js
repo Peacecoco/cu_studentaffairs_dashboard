@@ -1,36 +1,372 @@
 (() => {
   const api = new URL('../index.php', window.location.href).toString();
-  const list = document.getElementById('applicationList');
-  const detail = document.getElementById('detailView');
-  const listView = document.getElementById('listView');
-  const search = document.getElementById('searchInput');
-  const reason = document.getElementById('reasonFilter');
-  const filters = document.getElementById('filters');
+  const searchInput = document.getElementById('searchInput');
+  const refundFilter = document.getElementById('refundFilter');
+  const refreshBtn = document.getElementById('refreshBtn');
+  const tableBody = document.getElementById('applicationsTableBody');
   const statusMessage = document.getElementById('statusMessage');
-  const bell = document.getElementById('notificationBell');
-  const notificationCount = document.getElementById('notificationCount');
-  const notificationDropdown = document.getElementById('notificationDropdown');
-  const approveDialog = document.getElementById('approveDialog');
-  const rejectDialog = document.getElementById('rejectDialog');
-  const successDialog = document.getElementById('successDialog');
-  const mediaDialog = document.getElementById('mediaDialog');
-  const tab = document.body.dataset.tab;
-  let applications = [], active = null;
-  const statuses = {queue:['submitted'],approved:['awaitingpayment','paid','printed','readyforpickup','acknowledged','closed'],rejected:['rejected','cancelled','expired']};
-  const labels = {submitted:'Awaiting review',awaitingpayment:'Awaiting payment',paid:'Paid',printed:'Printed',readyforpickup:'Ready for pickup',acknowledged:'Acknowledged',closed:'Closed',rejected:'Rejected',cancelled:'Cancelled',expired:'Expired'};
-  const esc = value => String(value ?? '').replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
-  const date = value => value ? new Date(String(value).replace(' ','T')).toLocaleString() : 'Not available';
-  const type = value => value === 'loststolen' ? 'Lost / Stolen' : value === 'damaged' ? 'Damaged' : value;
-  const show = (message, kind) => { statusMessage.textContent = message; statusMessage.className = `notice show ${kind}`; };
-  const request = async (path, options = {}) => { const response = await fetch(`${api}${path}`, options); const body = await response.json().catch(() => ({})); if (!response.ok || !body.success) throw new Error(body.message || 'Request failed.'); return body; };
-  const visible = () => applications.filter(app => statuses[tab].includes(String(app.status).toLowerCase())).filter(app => { if (tab !== 'queue') return true; const needle = search.value.trim().toLowerCase(); const matchesText = !needle || [app.referencenumber,app.matricnumber,app.applicant?.name].some(value => String(value || '').toLowerCase().includes(needle)); return matchesText && (!reason.value || app.applicationtype === reason.value); }).sort((a,b) => tab === 'queue' ? new Date(a.createdat)-new Date(b.createdat) : new Date(b.updatedat || b.createdat)-new Date(a.updatedat || a.createdat));
-  const renderNotifications = () => { const pending = applications.filter(app => app.status === 'submitted'); notificationCount.hidden = !pending.length; notificationCount.textContent = pending.length; notificationDropdown.innerHTML = pending.length ? pending.slice(0,3).map(app => `<div><b>${esc(app.applicant?.name || app.matricnumber)}</b><br>${esc(type(app.applicationtype))} · ${esc(app.referencenumber)}</div>`).join('') : '<div>No applications awaiting review.</div>'; };
-  const render = () => { const data = visible(); list.innerHTML = data.length ? data.map(app => `<article class="app-card" data-ref="${esc(app.referencenumber)}"><div><strong>${esc(app.referencenumber)}</strong><span class="subtle">${esc(app.applicant?.name || 'Unknown student')} (${esc(app.matricnumber)})</span><span class="subtle">Reason: ${esc(type(app.applicationtype))}</span></div><div class="right"><span class="badge ${esc(app.status)}">${esc(labels[app.status] || app.status)}</span><span class="subtle">${tab === 'queue' ? 'Submitted' : 'Processed'}: ${esc(date(app.updatedat || app.submittedat || app.createdat))}</span></div></article>`).join('') : '<article class="app-card"><div><strong>No records found</strong><span class="subtle">There are no applications in this queue.</span></div></article>'; renderNotifications(); };
-  const media = (url, mime, label) => { if (!url) return '<div class="document-preview">Not available</div>'; return mime?.startsWith('image/') ? `<img class="open-media" src="${esc(url)}" data-url="${esc(url)}" data-mime="${esc(mime)}" data-label="${esc(label)}" alt="${esc(label)}">` : `<button class="document-preview open-media" data-url="${esc(url)}" data-mime="${esc(mime || 'application/pdf')}" data-label="${esc(label)}">View document</button>`; };
-  const showDetail = ref => { active = applications.find(app => app.referencenumber === ref); if (!active) return; const app = active, prior = applications.filter(item => item.matricnumber === app.matricnumber && item.referencenumber !== app.referencenumber); document.getElementById('detailContent').innerHTML = `<header class="detail-header"><div><h2>${esc(app.applicant?.name || 'Unknown student')}</h2><span class="subtle">${esc(app.matricnumber)} · ${esc(app.referencenumber)}</span></div><span class="badge ${esc(app.status)}">${esc(labels[app.status] || app.status)}</span></header><div class="detail-grid"><section><h3>Application details</h3><div class="field"><small>Department</small>${esc(app.applicant?.department || 'Not available')}</div><div class="field"><small>Reason</small>${esc(type(app.applicationtype))}</div><div class="field"><small>Date submitted</small>${esc(date(app.submittedat || app.createdat))}</div><h3>Past replacement history</h3>${prior.length ? prior.map(item => `<div class="field"><b>${esc(type(item.applicationtype))}</b><br><span class="subtle">${esc(labels[item.status] || item.status)} · ${esc(date(item.createdat))}</span></div>`).join('') : '<span class="subtle">No prior replacement requests.</span>'}</section><section><h3>Identity and verification</h3><div class="media-grid"><div class="preview">${media(app.registeredphoto?.url,'image/jpeg','Current portal photo')}<span class="subtle">Current portal photo</span></div><div class="preview">${media(app.photo?.url,app.photo?.mimeType,'Newly uploaded photo')}<span class="subtle">Newly uploaded photo</span></div></div><h3>Supporting document</h3><div class="preview">${media(app.document?.url,app.document?.mimeType,app.document?.name || 'Supporting document')}<span class="subtle">${esc(app.document?.name || 'No supporting document')}</span></div></section></div>${app.status === 'submitted' ? '<div class="actions"><button id="openReject" class="btn danger">Reject application</button><button id="openApprove" class="btn primary">Approve application</button></div>' : ''}`; listView.hidden = true; detail.hidden = false; filters.hidden = true; };
-  const load = async () => { try { const response = await request('?action=all'); applications = response.data || []; statusMessage.className = 'notice'; render(); } catch (error) { applications = []; render(); show(error.message,'error'); } };
-  const act = async action => { const payload = {referencenumber:active.referencenumber}; if(action === 'reject') payload.rejectionreason = document.getElementById('rejectReason').value.trim(); try { const response = await request(`?action=${action === 'approve' ? 'approvefee' : 'reject'}`, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); document.getElementById('successTitle').textContent = action === 'approve' ? 'Application approved' : 'Application rejected'; document.getElementById('successText').textContent = action === 'approve' ? `The student is awaiting payment. Fee: ₦${Number(response.data.approvedfee).toLocaleString()}. Deadline: ${response.data.paymentdeadline}.` : 'The rejection reason has been saved.'; successDialog.showModal(); await load(); } catch(error) { show(error.message,'error'); } };
-  search.addEventListener('input',render); reason.addEventListener('change',render); list.addEventListener('click', event => { const card = event.target.closest('[data-ref]'); if(card) showDetail(card.dataset.ref); }); document.getElementById('backButton').addEventListener('click',() => { detail.hidden = true; listView.hidden = false; filters.hidden = tab !== 'queue'; render(); });
-  document.getElementById('detailContent').addEventListener('click',event => { if(event.target.id === 'openApprove') approveDialog.showModal(); if(event.target.id === 'openReject') rejectDialog.showModal(); const trigger = event.target.closest('.open-media'); if(trigger){ const url=trigger.dataset.url,mime=trigger.dataset.mime,label=trigger.dataset.label; document.getElementById('mediaContent').innerHTML = mime.startsWith('image/') ? `<img src="${esc(url)}" alt="${esc(label)}">` : `<iframe src="${esc(url)}" title="${esc(label)}"></iframe>`; mediaDialog.showModal(); }});
-  document.getElementById('approveButton').addEventListener('click',() => act('approve')); document.getElementById('rejectButton').addEventListener('click',event => { if(!document.getElementById('rejectReason').value.trim()){event.preventDefault();return;} act('reject'); }); bell.addEventListener('click',() => { notificationDropdown.hidden = !notificationDropdown.hidden; }); load();
+
+  const paymentModal = document.getElementById('paymentModal');
+  const paymentContent = document.getElementById('paymentModalContent');
+  const historyModal = document.getElementById('historyModal');
+  const historyTimeline = document.getElementById('historyTimeline');
+  const historyRef = document.getElementById('historyRef');
+  const refundReviewModal = document.getElementById('refundReviewModal');
+  const refundReviewContent = document.getElementById('refundReviewContent');
+  const openApproveConfirmBtn = document.getElementById('openApproveConfirmBtn');
+  const approveConfirmModal = document.getElementById('approveConfirmModal');
+  const executeApproveBtn = document.getElementById('executeApproveBtn');
+  const cancelConfirmBtn = document.getElementById('cancelConfirmBtn');
+  const confirmRef = document.getElementById('confirmRef');
+  const confirmAmount = document.getElementById('confirmAmount');
+
+  let applications = [];
+  let currentRefund = null;
+
+  const esc = str => String(str ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+  
+  const formatDate = val => {
+    if (!val) return 'Not available';
+    const d = new Date(String(val).replace(' ', 'T'));
+    return isNaN(d.getTime()) ? val : d.toLocaleString();
+  };
+
+  const showNotice = (msg, kind = 'success') => {
+    if (!statusMessage) return;
+    statusMessage.textContent = msg;
+    statusMessage.className = `notice show ${kind}`;
+    setTimeout(() => {
+      if (statusMessage.textContent === msg) {
+        statusMessage.className = 'notice';
+      }
+    }, 6000);
+  };
+
+  const request = async (path, options = {}) => {
+    const headers = { 'Accept': 'application/json', ...(options.headers || {}) };
+    const response = await fetch(`${api}${path}`, { ...options, headers });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || !data.success) {
+      throw new Error(data.message || 'Request failed.');
+    }
+    return data;
+  };
+
+  const renderTable = () => {
+    const searchVal = searchInput ? searchInput.value.trim().toLowerCase() : '';
+    const filterVal = refundFilter ? refundFilter.value : 'all';
+
+    const filtered = applications.filter(app => {
+      if (filterVal === 'requested' && app.refund.status !== 'requested') return false;
+      if (filterVal === 'approved' && app.refund.status !== 'approved') return false;
+      if (filterVal === 'credited' && app.refund.status !== 'credited') return false;
+      if (filterVal === 'norefund' && app.refund.status !== 'none' && app.refund.status) return false;
+
+      if (!searchVal) return true;
+      const ref = String(app.referencenumber || '').toLowerCase();
+      const matric = String(app.matricnumber || '').toLowerCase();
+      const name = String(app.applicant_name || '').toLowerCase();
+      return ref.includes(searchVal) || matric.includes(searchVal) || name.includes(searchVal);
+    });
+
+    if (!filtered.length) {
+      tableBody.innerHTML = `<tr><td colspan="7" class="empty-state">No replacement applications found.</td></tr>`;
+      return;
+    }
+
+    tableBody.innerHTML = filtered.map(app => {
+      const isPaid = app.paymentstatus === 'paid';
+      const isFailed = app.paymentstatus === 'failed';
+      const payStatusClass = isPaid ? 'paid' : (isFailed ? 'failed' : 'legacy');
+      
+      let refundHtml = '';
+      if (app.refund.status === 'requested') {
+        refundHtml = `<button type="button" class="refund-action-btn" data-action="review-refund" data-ref="${esc(app.referencenumber)}" aria-label="Review refund request for ${esc(app.referencenumber)}">
+          <span aria-hidden="true">&#9888;</span> Requested — Review
+        </button>`;
+      } else if (app.refund.status === 'approved') {
+        refundHtml = `<span class="badge approved">Approved</span>`;
+      } else if (app.refund.status === 'credited') {
+        refundHtml = `<span class="badge credited">Credited</span>`;
+      } else {
+        refundHtml = `<span class="badge norefund">No Refund</span>`;
+      }
+
+      return `
+        <tr data-ref="${esc(app.referencenumber)}">
+          <td><strong>${esc(app.matricnumber)}</strong></td>
+          <td>
+            ${esc(app.applicant_name)}
+            <span class="student-sub">${esc(app.department || app.programme || 'Student')}</span>
+          </td>
+          <td><code>${esc(app.referencenumber)}</code></td>
+          <td>
+            <button type="button" class="btn-link" data-action="view-payment" data-ref="${esc(app.referencenumber)}">
+              <span class="badge ${payStatusClass}">${esc(app.paymentstatus_label || app.paymentstatus || 'Legacy')}</span>
+            </button>
+          </td>
+          <td>
+            <button type="button" class="btn secondary btn-sm" data-action="view-history" data-ref="${esc(app.referencenumber)}">
+              View History
+            </button>
+          </td>
+          <td>
+            <span class="badge ${esc(app.status)}">${esc(app.status)}</span>
+          </td>
+          <td>${refundHtml}</td>
+        </tr>
+      `;
+    }).join('');
+  };
+
+  const loadApplications = async () => {
+    try {
+      tableBody.innerHTML = `<tr><td colspan="7" class="empty-state">Loading applications...</td></tr>`;
+      const res = await request('?action=applications');
+      applications = res.data || [];
+      renderTable();
+    } catch (err) {
+      tableBody.innerHTML = `<tr><td colspan="7" class="empty-state">Error loading applications: ${esc(err.message)}</td></tr>`;
+      showNotice(err.message, 'error');
+    }
+  };
+
+  const showPaymentModal = async ref => {
+    paymentContent.innerHTML = 'Loading payment details...';
+    paymentModal.showModal();
+    try {
+      const res = await request(`?action=paymentdetails&ref=${encodeURIComponent(ref)}`);
+      const { application, transactions } = res.data;
+      
+      let txHtml = '';
+      if (!transactions || !transactions.length) {
+        txHtml = '<p class="modal-subtitle">No payment transactions recorded for this application.</p>';
+      } else {
+        txHtml = transactions.map((tx, idx) => `
+          <div class="callout-box" style="margin-top: 10px;">
+            <div><strong>Transaction #${idx + 1}</strong> (${esc(tx.status || 'unknown')})</div>
+            <div><strong>Payment Ref: </strong><code>${esc(tx.paymentreference || 'N/A')}</code></div>
+            <div><strong>Base Amount: </strong>₦${Number(tx.baseamount || 0).toLocaleString()}</div>
+            <div><strong>Charges: </strong>₦${Number(tx.chargeamount || 0).toLocaleString()}</div>
+            <div><strong>Total: </strong>₦${Number(tx.totalamount || 0).toLocaleString()}</div>
+            <div><strong>Provider: </strong>${esc(tx.provider || 'local-simulator')} (${esc(tx.currency || 'NGN')})</div>
+            <div><strong>Completed At: </strong>${formatDate(tx.completedat || tx.paidat || tx.createdat)}</div>
+            ${tx.failuremessage ? `<div style="color: var(--danger);"><strong>Failure: </strong>${esc(tx.failuremessage)}</div>` : ''}
+          </div>
+        `).join('');
+      }
+
+      paymentContent.innerHTML = `
+        <div class="detail-grid-view">
+          <div class="detail-item">
+            <small>Application Reference</small>
+            <strong>${esc(application.referencenumber)}</strong>
+          </div>
+          <div class="detail-item">
+            <small>Matric Number</small>
+            <strong>${esc(application.matricnumber)}</strong>
+          </div>
+          <div class="detail-item">
+            <small>Payment Status</small>
+            <span class="badge ${application.paymentstatus === 'paid' ? 'paid' : (application.paymentstatus === 'failed' ? 'failed' : 'legacy')}">${esc(application.paymentstatus || 'Legacy / Not Available')}</span>
+          </div>
+          <div class="detail-item">
+            <small>Paid At</small>
+            <strong>${formatDate(application.paidat)}</strong>
+          </div>
+        </div>
+        <h3 style="font-size: 1rem; margin: 16px 0 8px;">Recorded Transactions</h3>
+        ${txHtml}
+      `;
+    } catch (err) {
+      paymentContent.innerHTML = `<div class="notice show error">${esc(err.message)}</div>`;
+    }
+  };
+
+  const showHistoryModal = async ref => {
+    historyRef.textContent = `Reference: ${ref}`;
+    historyTimeline.innerHTML = 'Loading events...';
+    historyModal.showModal();
+    try {
+      const res = await request(`?action=history&ref=${encodeURIComponent(ref)}`);
+      const events = res.data || [];
+      if (!events.length) {
+        historyTimeline.innerHTML = '<p class="modal-subtitle">No lifecycle events recorded for this application.</p>';
+        return;
+      }
+      const eventLabels = {
+        'payment_paid': 'Payment successful',
+        'payment_failed': 'Payment failed',
+        'refund_requested': 'Refund requested by student',
+        'refund_approved': 'Refund approved by Student Affairs',
+        'refund_credited': 'Refund credited by Account Office',
+        'card_printed': 'ID Card physically printed',
+        'card_collected': 'ID Card collected by student'
+      };
+      historyTimeline.innerHTML = events.map(ev => `
+        <div class="timeline-entry">
+          <div class="timeline-dot"></div>
+          <div class="timeline-content">
+            <strong>${esc(eventLabels[ev.eventtype] || ev.eventtype)}</strong>
+            <span>${formatDate(ev.occurredat)} · Actor: ${esc(ev.actorrole || 'system')}</span>
+          </div>
+        </div>
+      `).join('');
+    } catch (err) {
+      historyTimeline.innerHTML = `<div class="notice show error">${esc(err.message)}</div>`;
+    }
+  };
+
+  const showRefundReviewModal = async ref => {
+    refundReviewContent.innerHTML = 'Loading refund request details...';
+    openApproveConfirmBtn.hidden = true;
+    refundReviewModal.showModal();
+    try {
+      const res = await request(`?action=refunddetails&ref=${encodeURIComponent(ref)}`);
+      currentRefund = res.data;
+      const r = currentRefund;
+      
+      const isRequested = r.refund && r.refund.status === 'requested';
+      openApproveConfirmBtn.hidden = !isRequested;
+      openApproveConfirmBtn.disabled = !isRequested;
+
+      let historyList = '';
+      if (r.events && r.events.length) {
+        historyList = `
+          <div class="timeline-container" style="margin-top: 10px;">
+            ${r.events.map(ev => `
+              <div class="timeline-entry">
+                <div class="timeline-dot"></div>
+                <div class="timeline-content">
+                  <strong>${esc(ev.eventtype)}</strong>
+                  <span>${formatDate(ev.occurredat)}</span>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        `;
+      } else {
+        historyList = '<span class="modal-subtitle">No events logged.</span>';
+      }
+
+      refundReviewContent.innerHTML = `
+        <div class="detail-grid-view">
+          <div class="detail-item">
+            <small>Student Name</small>
+            <strong>${esc(r.student_name)}</strong>
+          </div>
+          <div class="detail-item">
+            <small>Matric Number</small>
+            <strong>${esc(r.matricnumber)}</strong>
+          </div>
+          <div class="detail-item">
+            <small>Reference ID</small>
+            <strong><code>${esc(r.referencenumber)}</code></strong>
+          </div>
+          <div class="detail-item">
+            <small>Replacement Reason</small>
+            <strong>${esc(r.applicationtype)}</strong>
+          </div>
+          <div class="detail-item">
+            <small>Payment Status</small>
+            <span class="badge ${r.paymentstatus === 'paid' ? 'paid' : 'failed'}">${esc(r.paymentstatus)}</span>
+          </div>
+          <div class="detail-item">
+            <small>Payment Date</small>
+            <strong>${formatDate(r.paidat)}</strong>
+          </div>
+          <div class="detail-item">
+            <small>Refund Requested Date</small>
+            <strong>${formatDate(r.refund.requestedat)}</strong>
+          </div>
+          <div class="detail-item">
+            <small>Refund Amount</small>
+            <strong style="color: var(--primary); font-size: 1.1rem;">₦${Number(r.refund.amount).toLocaleString()}</strong>
+          </div>
+          <div class="detail-item">
+            <small>Application Status</small>
+            <span class="badge ${esc(r.applicationstatus)}">${esc(r.applicationstatus)}</span>
+          </div>
+          <div class="detail-item">
+            <small>Refund Status</small>
+            <span class="badge ${esc(r.refund.status)}">${esc(r.refund.status)}</span>
+          </div>
+        </div>
+        <h4 style="margin: 16px 0 8px; font-size: 0.95rem;">Application History Timeline</h4>
+        ${historyList}
+      `;
+    } catch (err) {
+      refundReviewContent.innerHTML = `<div class="notice show error">${esc(err.message)}</div>`;
+    }
+  };
+
+  // Event Listeners
+  if (searchInput) searchInput.addEventListener('input', renderTable);
+  if (refundFilter) refundFilter.addEventListener('change', renderTable);
+  if (refreshBtn) refreshBtn.addEventListener('click', loadApplications);
+
+  document.addEventListener('click', event => {
+    const trigger = event.target.closest('[data-action]');
+    if (!trigger) return;
+    const action = trigger.dataset.action;
+    const ref = trigger.dataset.ref;
+    if (action === 'view-payment') showPaymentModal(ref);
+    if (action === 'view-history') showHistoryModal(ref);
+    if (action === 'review-refund') showRefundReviewModal(ref);
+  });
+
+  // Close modals
+  document.querySelectorAll('.modal-close').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const dialog = btn.closest('dialog');
+      if (dialog) dialog.close();
+    });
+  });
+
+  // Refund Approval flow
+  if (openApproveConfirmBtn) {
+    openApproveConfirmBtn.addEventListener('click', () => {
+      if (!currentRefund) return;
+      confirmRef.textContent = currentRefund.referencenumber;
+      confirmAmount.textContent = `₦${Number(currentRefund.refund.amount).toLocaleString()}`;
+      approveConfirmModal.showModal();
+    });
+  }
+
+  if (cancelConfirmBtn) {
+    cancelConfirmBtn.addEventListener('click', () => {
+      approveConfirmModal.close();
+    });
+  }
+
+  if (executeApproveBtn) {
+    executeApproveBtn.addEventListener('click', async () => {
+      if (!currentRefund) return;
+      executeApproveBtn.disabled = true;
+      executeApproveBtn.textContent = 'Approving...';
+      try {
+        const csrf = window.affairsCsrf || '';
+        const res = await request('?action=approverefund', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': csrf
+          },
+          body: JSON.stringify({ referencenumber: currentRefund.referencenumber })
+        });
+        approveConfirmModal.close();
+        refundReviewModal.close();
+        showNotice(res.message || 'Refund approved successfully.', 'success');
+        await loadApplications();
+      } catch (err) {
+        alert(err.message || 'Failed to approve refund.');
+      } finally {
+        executeApproveBtn.disabled = false;
+        executeApproveBtn.textContent = 'Confirm Approval';
+      }
+    });
+  }
+
+  // Initial Load
+  loadApplications();
 })();

@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 class General
@@ -29,8 +30,8 @@ class General
 
     protected function expireOverdueApplications(): void
     {
-        $statement = $this->db->prepare("UPDATE idcardapplications SET status = 'expired', updatedat = NOW() WHERE status = 'awaitingpayment' AND paymentdeadline IS NOT NULL AND paymentdeadline < CURDATE()");
-        $statement->execute();
+        // Decommissioned: Active workflow no longer creates awaitingpayment records.
+        // Reading applications must never mutate historical database rows.
     }
 
     protected function urlFor(?string $path): ?string
