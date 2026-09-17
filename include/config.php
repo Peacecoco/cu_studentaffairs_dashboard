@@ -3,10 +3,10 @@
 declare(strict_types=1);
 date_default_timezone_set('Africa/Lagos');
 
-define('DB_HOST', getenv('CU_STUDENTAFFAIRS_DB_HOST') ?: (getenv('CU_AFFAIRS_DB_HOST') ?: 'localhost'));
-define('DB_NAME', getenv('CU_STUDENTAFFAIRS_DB_NAME') ?: (getenv('CU_AFFAIRS_DB_NAME') ?: 'idcard_system'));
-define('DB_USER', getenv('CU_STUDENTAFFAIRS_DB_USER') ?: (getenv('CU_AFFAIRS_DB_USER') ?: 'root'));
-define('DB_PASS', getenv('CU_STUDENTAFFAIRS_DB_PASS') ?: (getenv('CU_AFFAIRS_DB_PASS') ?: ''));
+define('DB_HOST', 'localhost');
+define('DB_NAME',  'idcard_system');
+define('DB_USER', 'root');
+define('DB_PASS', '');
 define('BASE_PATH', dirname(__DIR__));
 
 try {

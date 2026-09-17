@@ -1,71 +1,42 @@
-# CU Student Affairs — ID Card Review
+# CU Student Affairs — Refund Review
 
-PHP dashboard and JSON API for reviewing replacement-card applications. It uses plain JavaScript/CSS and reads the shared `idcard_system` database directly.
+Student Affairs monitors replacement applications and approves eligible refund requests. It does not approve or reject ordinary replacement applications.
 
-[CU Student](../cu_student/README.md) owns submissions and replacement uploads. Student Affairs approves fees/deadlines or rejects requests. Paid applications continue to [ID Card System](../idcard-system/README.md) for card generation and printing.
+## Page
 
-## Setup
+- `studentaffairs/review-requests.php` — Applications & Refunds dashboard
 
-1. Use PHP 8.1+ with `pdo_mysql`, MySQL/MariaDB, and a PHP-capable server. No Composer or frontend build is required here.
-2. Follow the [shared database setup](../idcard-system/README.md#database-setup), including `idcardsettings`. This module needs `students`, `idcardapplications`, and `idcardsettings`.
-3. Set [include/config.php](include/config.php) to the same database as the other projects.
-4. Keep `cu_student`, `cu_studentaffairs`, and `idcard-system` as siblings for media resolution.
-5. Open `http://localhost/REFACTOR/cu_studentaffairs/studentaffairs/review-requests.php`, adjusting the base path as needed.
+The dashboard uses one all-applications table with backend-supported search by reference, matric number, or student name. Its filter supports All Applications, Requested, Approved, Credited, and No Refund. Historical rejected applications remain visible under All Applications; there is no separate rejected-log page.
 
-## Dashboard workflow
+## Refund workflow
 
-Navigation now opens dedicated pages: `studentaffairs/review-requests.php`, `studentaffairs/approved-log.php`, and `studentaffairs/rejected-log.php`. Each sets its own fixed list and heading, while sharing the application list, details, dialogs, and API script. `studentaffairs/dashboard.php` redirects to Review ID Requests. Browser refresh/back and direct bookmarks retain the selected page.
+1. Student creates a `requested` refund in the Student portal.
+2. Student Affairs reviews safe student, application, payment, refund, and actual event-history data.
+3. Student Affairs approves through the shared lifecycle: `requested → approved`.
+4. Account Officer completes `approved → credited`.
 
-| Tab | Statuses | Ordering/filtering |
-| --- | --- | --- |
-| Review ID Requests | `submitted` | Oldest first; search name, matriculation number, or reference; filter by reason. |
-| Approved Log | `awaitingpayment`, `paid`, `printed`, `readyforpickup`, `acknowledged`, `closed` | Most recently updated first. |
-| Rejected Log | `rejected`, `cancelled`, `expired` | Most recently updated first. |
+Approval records trusted actor identity/timestamp and appends `refund_approved`. It never sends money or marks a refund credited.
 
-Opening a card shows applicant information, prior replacement requests, registered photo, replacement photo, and supporting document. Media opens in a larger viewer. The bell counts submitted requests and shows up to three entries; it does not send email/SMS.
+## Authentication and configuration
 
-Only submitted applications can be reviewed:
+Production requires `CU_STUDENTAFFAIRS_IDENTITY_RESOLVER` or `CU_AFFAIRS_IDENTITY_RESOLVER`, resolving a portal session login to `student_affairs`.
 
-- Approval reads active settings for the reason, copies the fee, calculates the payment deadline from `expirydays`, records the reviewer, and sets `awaitingpayment`.
-- Rejection requires a nonempty reason, records the reviewer, and sets `rejected`.
-- Updates check the previous status and return a conflict if another request already processed it.
-- Listing applications also expires overdue `awaitingpayment` records. This is triggered by API access, not a scheduled job.
+For local testing:
 
-## Folder guide
+```env
+CU_AUTH_BYPASS=1
+CU_AUTH_BYPASS_AFFAIRS_ACTOR=DEV_STUDENT_AFFAIRS
+```
 
-| Path | Purpose |
-| --- | --- |
-| `studentaffairs/dashboard.php` | Compatibility redirect to `review-requests.php`. |
-| `studentaffairs/review-requests.php`, `approved-log.php`, `rejected-log.php` | Dedicated review and log pages. |
-| `include/studentaffairs/` | Shared header/navigation, application list/detail view, and footer/dialogs. |
-| `index.php` | JSON API router. |
-| `class/StudentAffairs.php` | Listing, student joins, approval/rejection, response formatting. |
-| `class/General.php` | Responses, cleaning, expiry updates, media URL resolution. |
-| `include/config.php` | PDO connection and base path. |
-| `include/classes.php` | Class loading. |
-| `include/session.php` | Session initialization and reviewer identity. |
-| `assets/js/studentaffairs.js` | Page-specific status filtering, search, details, notifications, and review requests. |
-| `assets/css/studentaffairs.css` | Layout, responsive rules, and status badges. |
-| `assets/images/` | University branding. |
-| `idcard/` | Legacy photos referenced by older records; new submissions belong to `cu_student`. |
+CSRF remains active in bypass mode because the module receives a stable local actor. Database overrides are `CU_STUDENTAFFAIRS_DB_HOST`, `CU_STUDENTAFFAIRS_DB_NAME`, `CU_STUDENTAFFAIRS_DB_USER`, and `CU_STUDENTAFFAIRS_DB_PASS`.
 
 ## API
 
-Routes are relative to `index.php`. Responses contain `success`, `message`, and optional `data`.
+- `GET index.php?action=session`
+- `GET index.php?action=applications&search=&filter=`
+- `GET index.php?action=paymentdetails&ref=`
+- `GET index.php?action=history&ref=`
+- `GET index.php?action=refunddetails&ref=`
+- `POST index.php?action=approverefund` with `X-CSRF-Token`
 
-| Method | Query | Input / result |
-| --- | --- | --- |
-| GET | `?action=all` | All applications, joined student data, and media URLs; also expires overdue invoices. |
-| GET | `?action=department&ref=...` | Applicant department. |
-| PUT | `?action=approvefee` | JSON with `referencenumber`. |
-| PUT | `?action=reject` | JSON with `referencenumber` and `rejectionreason`. |
-
-## Identity and shared files
-
-`currentReviewer()` uses `$_SESSION['staff_number']`, then `$_SESSION['idcard_reviewer']`, then `STAFF001`. This records a reviewer identity but does not authenticate staff or enforce roles. Host-portal access control is not implemented in this standalone dashboard/API.
-
-Media resolution checks the relative path under `../idcard-system`, then `../cu_student`, then this project. Preserve or update stored paths when moving files. A missing student match produces “Unknown student”; the left join keeps the application visible.
-
-## Manual verification
-
-With development records, check search/reason filtering, document/photo previews, approval fee/deadline, required rejection reasons, and conflict handling for already reviewed applications. Check paid records in Approved Log and expired invoices in Rejected Log. These checks change shared application records. Navigation regression checks are available in the workspace at [tests/navigation_smoke.py](../tests/navigation_smoke.py). Run `python tests/navigation_smoke.py` from REFACTOR with Apache/PHP running. These check page routes, assets, filters, and legacy redirects; they do not exercise application/payment writes.
+Legacy `approvefee`, `reject`, and related ordinary-application review actions are explicitly disabled.
