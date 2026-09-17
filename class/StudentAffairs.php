@@ -192,7 +192,7 @@ class StudentAffairs extends General
     }
 
     /**
-     * Advance refund status from 'requested' to 'approved' using the shared lifecycle service.
+     * Advance refund status from 'requested' to 'approved' using the domain lifecycle service.
      */
     public function approveRefund(string $reference): never
     {

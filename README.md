@@ -12,7 +12,7 @@ The dashboard uses one all-applications table with backend-supported search by r
 
 1. Student creates a `requested` refund in the Student portal.
 2. Student Affairs reviews safe student, application, payment, refund, and actual event-history data.
-3. Student Affairs approves through the shared lifecycle: `requested → approved`.
+3. Student Affairs approves through its domain lifecycle: `requested → approved`.
 4. Account Officer completes `approved → credited`.
 
 Approval records trusted actor identity/timestamp and appends `refund_approved`. It never sends money or marks a refund credited.
